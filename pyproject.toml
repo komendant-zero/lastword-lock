@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lastword-lock"
+version = "1.0.0"
+description = "File encryption with distributed Proof-of-Work mining decryption for any device."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "komendant-zero" },
+    { name = "Antigravity IDE" },
+    { name = "Gemini" },
+]
+dependencies = [
+    "cryptography>=42.0.0",
+    "rich>=13.0.0",
+    "click>=8.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "qrcode>=7.0",
+]
+
+[project.scripts]
+lastword-lock = "lastword_lock.cli:main"
+lastword = "lastword_lock.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+lastword_lock = ["web/*"]
