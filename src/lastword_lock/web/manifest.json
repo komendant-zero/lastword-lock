@@ -1,0 +1,21 @@
+{
+  "name": "LastWord Lock — Crypto-Shredder",
+  "short_name": "CryptoShred",
+  "description": "Irreversible Client-Side Cryptographic File Shredder & Digital Black Hole",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "icons": [
+    {
+      "src": "/static/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 """
 FastAPI Coordinator Server for LastWord Lock Mining Pool.
 Coordinates range leases between CLI workers and web browser workers,
-verifies solutions, triggers decryption, enforces contest winner-claim protection,
+verifies solutions, triggers decryption,
 and broadcasts live pool telemetry.
 """
 
@@ -31,11 +31,6 @@ class ProgressReport(BaseModel):
     hashes_done: int = 0
     hashrate: float = 0.0
     name: Optional[str] = None
-
-
-class CommitSubmit(BaseModel):
-    worker_id: str
-    commit: str
 
 
 class SolutionSubmit(BaseModel):
@@ -71,7 +66,6 @@ class PoolCoordinator:
         container_path: Path,
         output_path: Optional[Path] = None,
         chunk_size: Optional[int] = None,
-        contest_mode: bool = False,
     ):
         self.container_path = Path(container_path)
         self.metadata, self.payload_offset, self.header_bytes = read_container_metadata(self.container_path)
@@ -95,8 +89,6 @@ class PoolCoordinator:
         else:
             self.chunk_size = chunk_size
 
-        self.contest_mode = contest_mode
-
         # Search space tracking
         self.search_space = self.metadata.search_space
         self.cursor = 0
@@ -110,18 +102,13 @@ class PoolCoordinator:
         # Workers
         self.workers: Dict[str, WorkerRecord] = {}
 
-        # Solved state & contest protection
+        # Solved state
         self.is_solved = False
         self.winning_nonce: Optional[int] = None
         self.solved_by: Optional[str] = None
         self.winner_id: Optional[str] = None
-        self.winner_claim_token: Optional[str] = None
-        self.winner_commit_time: float = float("inf")
         self.decrypted_file_path: Optional[Path] = None
         self.decrypted_bytes: Optional[bytes] = None
-
-        # Commit-reveal registry: worker_id -> (commit_hash, timestamp)
-        self.commits: Dict[str, Tuple[str, float]] = {}
 
         # WebSockets
         self.connected_sockets: List[WebSocket] = []
@@ -144,11 +131,17 @@ class PoolCoordinator:
             w.cores = cores
             w.last_seen = now
 
+        if self.metadata.status == "SHREDDED":
+            return {
+                "status": "shredded",
+                "message": "This file is irrevocably crypto-shredded. Decryption is mathematically impossible.",
+                "cert_id": self.metadata.cert_id,
+            }
+
         if self.is_solved:
             return {
                 "status": "solved",
-                # Never reveal solution nonce in contest mode!
-                "solution": None if self.contest_mode else self.winning_nonce,
+                "solution": self.winning_nonce,
                 "solved_by": self.solved_by,
             }
 
@@ -273,67 +266,37 @@ class PoolCoordinator:
             return True
         return True
 
-    def record_commit(self, worker_id: str, commit_hash: str) -> float:
+    def submit_solution(self, worker_id: str, nonce: int, name: Optional[str] = None) -> bool:
         """
-        Commit-reveal registration: stores sha256(nonce || worker_id) and locks the timestamp.
-        Returns the registered commit timestamp.
-        """
-        now = time.time()
-        commit_clean = commit_hash.strip().lower()
-        if worker_id not in self.commits:
-            self.commits[worker_id] = (commit_clean, now)
-            return now
-        return self.commits[worker_id][1]
-
-    def submit_solution(self, worker_id: str, nonce: int, name: Optional[str] = None) -> Tuple[bool, Optional[str]]:
-        """
-        Verify candidate solution, decrypt file, and issue an exclusive claim token to winner.
+        Verify candidate solution, decrypt file, and update pool state.
         Security characteristics:
         - ALWAYS verifies nonce first.
-        - Supports commit-reveal: prevents front-running and on-path HTTP packet interception.
         - Unpacks container BEFORE transitioning to solved state.
-        - Does not return claim token to anyone who hasn't provided the exact valid nonce.
         """
         # 1. ALWAYS verify nonce first!
         if not verify_nonce(self.metadata.salt, self.metadata.target_hash, nonce, algo=self.metadata.pow_alg):
-            return False, None
+            return False
 
-        now = time.time()
-        expected_commit = hashlib.sha256(f"{nonce}:{worker_id}".encode()).hexdigest().lower()
-        has_commit = (worker_id in self.commits and self.commits[worker_id][0] == expected_commit)
-        commit_timestamp = self.commits[worker_id][1] if has_commit else now
-
-        # 2. If already solved, return token ONLY if submitted nonce matches the winning nonce
+        # 2. If already solved, return True if matching winning nonce
         if self.is_solved:
-            if nonce == self.winning_nonce and worker_id == self.winner_id:
-                return True, self.winner_claim_token
-            # In contest mode, if candidate has an earlier registered commitment than current winner:
-            if self.contest_mode and has_commit and commit_timestamp < self.winner_commit_time:
-                self.winner_id = worker_id
-                self.solved_by = name or worker_id
-                self.winner_commit_time = commit_timestamp
-                self.winner_claim_token = secrets.token_urlsafe(32)
-                return True, self.winner_claim_token
-            return False, None
+            return nonce == self.winning_nonce
 
         # 3. Decrypt container FIRST before updating pool state
         try:
             out_file = unpack_container(self.container_path, self.output_path, nonce)
             decrypted_bytes = out_file.read_bytes()
         except Exception:
-            return False, None
+            return False
 
         # 4. State transition only on confirmed decryption
         self.is_solved = True
         self.winning_nonce = nonce
         self.solved_by = name or worker_id
         self.winner_id = worker_id
-        self.winner_commit_time = commit_timestamp
-        self.winner_claim_token = secrets.token_urlsafe(32)
         self.decrypted_file_path = out_file
         self.decrypted_bytes = decrypted_bytes
 
-        return True, self.winner_claim_token
+        return True
 
     def get_stats(self) -> Dict[str, Any]:
         now = time.time()
@@ -359,10 +322,8 @@ class PoolCoordinator:
 
         return {
             "is_solved": self.is_solved,
-            # In contest mode, do NOT reveal the solution nonce publicly!
-            "solution": None if self.contest_mode else self.winning_nonce,
+            "solution": self.winning_nonce,
             "solved_by": self.solved_by,
-            "contest_mode": self.contest_mode,
             "search_space": self.search_space,
             "completed_hashes": min(self.completed_hashes, self.search_space),
             "progress_percent": min(100.0, pct),
@@ -390,6 +351,11 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
         return {
             "filename": coordinator.metadata.original_filename,
             "file_size": coordinator.metadata.file_size,
+            "status": coordinator.metadata.status,
+            "cipher": coordinator.metadata.cipher,
+            "cert_id": coordinator.metadata.cert_id,
+            "shredded_at": coordinator.metadata.shredded_at,
+            "original_sha256": coordinator.metadata.file_sha256,
             "difficulty": coordinator.metadata.difficulty,
             "search_space": coordinator.metadata.search_space,
             "salt": coordinator.metadata.salt.hex(),
@@ -397,10 +363,8 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
             "pow_alg": coordinator.metadata.pow_alg,
             "chunk_size": coordinator.chunk_size,
             "is_solved": coordinator.is_solved,
-            # In contest mode, hide winning nonce from public info!
-            "solution": None if coordinator.contest_mode else coordinator.winning_nonce,
+            "solution": coordinator.winning_nonce if coordinator.is_solved else None,
             "solved_by": coordinator.solved_by,
-            "contest_mode": coordinator.contest_mode,
         }
 
     @app.get("/api/job")
@@ -426,12 +390,6 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
             )
         timestamps.append(now)
 
-    @app.post("/api/commit")
-    async def post_commit(payload: CommitSubmit, request: Request):
-        check_rate_limit(request, max_reqs=10, window_sec=5.0)
-        ts = coordinator.record_commit(payload.worker_id, payload.commit)
-        return {"status": "ok", "worker_id": payload.worker_id, "timestamp": ts}
-
     @app.post("/api/progress")
     async def post_progress(report: ProgressReport):
         ok = coordinator.record_progress(
@@ -448,8 +406,8 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
     @app.post("/api/submit")
     async def post_submit(solution: SolutionSubmit, request: Request):
         check_rate_limit(request, max_reqs=5, window_sec=5.0)
-        # Offload CPU-heavy verify_nonce (especially for memory-hard Scrypt) and decryption to threadpool
-        success, claim_token = await run_in_threadpool(
+        # Offload CPU-heavy verify_nonce and decryption to threadpool
+        success = await run_in_threadpool(
             coordinator.submit_solution,
             worker_id=solution.worker_id,
             nonce=solution.nonce,
@@ -468,7 +426,7 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
         return {
             "status": "ok",
             "message": "Solution verified! File decrypted.",
-            "claim_token": claim_token,
+            "solution": coordinator.winning_nonce,
             "output_path": str(coordinator.decrypted_file_path),
         }
 
@@ -477,26 +435,9 @@ def create_pool_app(coordinator: PoolCoordinator) -> FastAPI:
         return coordinator.get_stats()
 
     @app.get("/api/download")
-    async def download_file(
-        token: Optional[str] = Query(None),
-        x_claim_token: Optional[str] = Header(None, alias="X-Claim-Token"),
-        authorization: Optional[str] = Header(None),
-    ):
+    async def download_file():
         if not coordinator.is_solved or coordinator.decrypted_file_path is None:
             raise HTTPException(status_code=404, detail="File is not yet unlocked.")
-
-        # Contest mode protection: supports X-Claim-Token header, Bearer Authorization, or query param
-        if coordinator.contest_mode:
-            provided_token = x_claim_token or token
-            if not provided_token and authorization and authorization.startswith("Bearer "):
-                provided_token = authorization[7:].strip()
-
-            # Constant-time comparison to prevent timing side-channels
-            if not provided_token or not coordinator.winner_claim_token or not secrets.compare_digest(provided_token, coordinator.winner_claim_token):
-                raise HTTPException(
-                    status_code=403,
-                    detail="Contest Mode Active: Only the winning solver holding the valid claim token can claim this file.",
-                )
 
         safe_name = Path(coordinator.metadata.original_filename).name or "unlocked_file"
         return FileResponse(

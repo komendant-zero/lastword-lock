@@ -68,12 +68,10 @@ def run_worker_cli(
         return
 
     algo = info.get("pow_alg", "sha256")
-    is_contest = info.get("contest_mode", False)
 
     console.print(
         f"[green]✓[/green] Connected! Target file: [bold]{info['filename']}[/bold] "
-        f"({info['difficulty']} bits, {info['search_space']:,} search space, [cyan]{algo.upper()}[/cyan]"
-        f"{' • [bold yellow]CONTEST MODE[/bold yellow]' if is_contest else ''})\n"
+        f"({info['difficulty']} bits, {info['search_space']:,} search space, [cyan]{algo.upper()}[/cyan])\n"
     )
 
     if info.get("is_solved"):
@@ -181,18 +179,7 @@ def run_worker_cli(
                         border_style="green",
                     )
                 )
-                # Commit-reveal protection against HTTP packet sniffing / front-running
-                commit_hash = hashlib.sha256(f"{found_nonce}:{worker_id}".encode()).hexdigest()
-                try:
-                    client.post(
-                        f"{pool_url}/api/commit",
-                        json={"worker_id": worker_id, "commit": commit_hash},
-                        timeout=5.0,
-                    )
-                except Exception:
-                    pass
-
-                claim_token = None
+                solved_successfully = False
                 for attempt in range(1, 11):
                     try:
                         submit_res = client.post(
@@ -200,12 +187,11 @@ def run_worker_cli(
                             json={"worker_id": worker_id, "name": worker_name, "nonce": found_nonce},
                         )
                         if submit_res.status_code == 200:
-                            sub_data = submit_res.json()
-                            claim_token = sub_data.get("claim_token")
                             console.print("[bold green]✓ Solution verified and accepted by pool coordinator![/bold green]")
+                            solved_successfully = True
                             break
                         elif submit_res.status_code == 400:
-                            console.print(f"[bold red]❌ Pool rejected candidate: {submit_res.text}. Contest may already be solved or nonce invalid.[/bold red]")
+                            console.print(f"[bold red]❌ Pool rejected candidate: {submit_res.text}.[/bold red]")
                             break
                         else:
                             console.print(f"[yellow]Attempt {attempt}/10: submit returned {submit_res.status_code}. Retrying...[/yellow]")
@@ -213,29 +199,25 @@ def run_worker_cli(
                         console.print(f"[yellow]Attempt {attempt}/10: failed to submit solution ({ex}). Retrying in {min(10, int(1.5 * attempt))}s...[/yellow]")
                     time.sleep(min(10.0, 1.5 * attempt))
 
-                # Automatically claim & download the unlocked prize file if requested
-                if download_on_win and claim_token:
+                # Automatically download the unlocked file if requested
+                if download_on_win and solved_successfully:
                     for dl_attempt in range(1, 5):
                         try:
-                            # Use X-Claim-Token header to avoid token exposure in access logs/URLs
-                            dl_res = client.get(
-                                f"{pool_url}/api/download",
-                                headers={"X-Claim-Token": claim_token},
-                            )
+                            dl_res = client.get(f"{pool_url}/api/download")
                             if dl_res.status_code == 200:
                                 safe_name = Path(info["filename"]).name or "unlocked_file"
-                                out_claimed = Path(f"claimed_{safe_name}")
-                                out_claimed.write_bytes(dl_res.content)
+                                out_saved = Path(f"decrypted_{safe_name}")
+                                out_saved.write_bytes(dl_res.content)
                                 console.print(
                                     Panel.fit(
-                                        f"[bold green]🏆 PRIZE CLAIMED & DOWNLOADED LOCALLY![/bold green]\n"
-                                        f"Saved as: [bold cyan]{out_claimed.resolve()}[/bold cyan]\n"
+                                        f"[bold green]🏆 FILE UNLOCKED & DOWNLOADED LOCALLY![/bold green]\n"
+                                        f"Saved as: [bold cyan]{out_saved.resolve()}[/bold cyan]\n"
                                         f"File Size: [magenta]{len(dl_res.content):,} bytes[/magenta]",
                                         border_style="green",
                                     )
                                 )
                                 break
-                        except Exception as e:
+                        except Exception:
                             time.sleep(1.5)
                 break
             else:

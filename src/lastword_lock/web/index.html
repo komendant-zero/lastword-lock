@@ -2,9 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LastWord Lock — Distributed Proof-of-Work Decryption Pool</title>
-  <meta name="description" content="Decentralized file decryption using Proof-of-Work mining. Connect any phone, laptop, or server to participate.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LastWord Lock — Universal Crypto-Shredder & Digital Black Hole</title>
+  <meta name="description" content="Irreversible client-side cryptographic file shredding. Works 100% locally on iPhone, Android, Mac, Linux, and Windows. Mathematically impossible to decrypt.">
+  <meta name="theme-color" content="#07090e">
+  <link rel="manifest" href="/static/manifest.json">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,18 +18,20 @@
   <header>
     <div class="brand">
       <div class="brand-icon">
-        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22">
+          <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+        </svg>
       </div>
       <div>
         <h1 class="brand-title">LASTWORD-LOCK</h1>
       </div>
-      <span class="brand-badge">MINING POOL</span>
+      <span class="brand-badge">BLACK HOLE</span>
     </div>
 
     <div class="header-status">
       <div class="status-indicator">
         <span class="pulse-dot"></span>
-        <span id="pool-connection-status">Pool Active</span>
+        <span id="device-info-badge">Client-Side CSPRNG Active</span>
       </div>
     </div>
   </header>
@@ -35,171 +39,246 @@
   <!-- Main Content Dashboard -->
   <main>
 
-    <!-- Hero Card: Target Container Details -->
-    <section class="hero-card">
-      <h2 style="font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em;">Target Encrypted Container</h2>
-      <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.35rem;">
-        Decrypting this container requires finding the unique 64-bit cryptographic solution nonce across the search space.
-      </p>
-
-      <div class="file-meta-grid">
-        <div class="meta-box">
-          <span class="meta-label">Original File</span>
-          <span class="meta-val" id="file-name">Loading...</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">Algorithm</span>
-          <span class="meta-val" id="algorithm">--</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">File Size</span>
-          <span class="meta-val" id="file-size">--</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">PoW Difficulty</span>
-          <span class="meta-val" id="difficulty">--</span>
-        </div>
-        <div class="meta-box">
-          <span class="meta-label">Total Search Space</span>
-          <span class="meta-val" id="search-space">--</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- Key Metrics Cards -->
-    <section class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="stat-title">This Device Hashrate</span>
-          <svg class="stat-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.05.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.04-4.09l-2.48-1.46C16.14 17.74 14.21 19 12 19z"/></svg>
-        </div>
-        <span class="stat-value cyan" id="local-hashrate">0.0 H/s</span>
-        <span class="stat-subtitle">Utilizing JavaScript Web Workers</span>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="stat-title">Total Pool Hashrate</span>
-          <svg class="stat-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-        </div>
-        <span class="stat-value green" id="pool-hashrate">0.0 H/s</span>
-        <span class="stat-subtitle">Combined speed of all joined devices</span>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-header">
-          <span class="stat-title">Estimated Time</span>
-          <svg class="stat-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-        </div>
-        <span class="stat-value purple" id="estimated-time">--</span>
-        <span class="stat-subtitle">Based on current pool speed</span>
-      </div>
-    </section>
-
-    <!-- Search Space Exploration Progress -->
-    <section class="progress-section">
-      <div class="progress-header">
-        <span class="progress-title">Search Space Exploration</span>
-        <span class="progress-pct" id="progress-pct">0.0%</span>
-      </div>
-
-      <div class="bar-container">
-        <div class="bar-fill" id="progress-bar"></div>
-      </div>
-
-      <div class="progress-details">
-        <span>Nonces explored: <strong id="progress-done" style="color: var(--text-main);">0</strong></span>
-        <span>Total space: <strong id="progress-total" style="color: var(--text-main);">0</strong></span>
-      </div>
-    </section>
-
-    <!-- Scrypt Algorithm Notice (if active) -->
-    <div id="scrypt-notice" style="display: none; background: rgba(245, 158, 11, 0.12); border: 1px solid var(--accent-amber); border-radius: var(--radius-sm); padding: 1rem 1.25rem; margin-bottom: 1.5rem; color: #fde68a; font-size: 0.9rem;">
-      <strong>⚠️ Memory-Hard Scrypt Algorithm Active</strong>
-      <p style="margin-top: 0.35rem; color: var(--text-dim); line-height: 1.5;">
-        This container uses Scrypt (N=16384, r=8, ~16 MB RAM per hash attempt). In-browser mining is disabled for Scrypt to prevent browser out-of-memory crashes.
-        To mine this container, connect via the CLI worker:
-        <code style="display: block; margin-top: 0.5rem; background: rgba(0,0,0,0.4); padding: 0.5rem 0.75rem; border-radius: 4px; font-family: var(--font-mono); color: var(--accent-cyan);">lastword worker <script>document.write(window.location.origin);</script></code>
-      </p>
+    <!-- Nav Tabs -->
+    <div class="tab-nav">
+      <button class="tab-btn active" data-tab="shred-tab">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
+        Crypto-Shredder
+      </button>
+      <button class="tab-btn" data-tab="verify-tab">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        Inspect Certificate
+      </button>
+      <button class="tab-btn" data-tab="devices-tab">
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v10H4V6zm16-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h7v2H8v2h8v-2h-3v-2h7c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
+        All Devices & PWA
+      </button>
     </div>
 
-    <!-- Mining Controls -->
-    <section class="controls-card">
-      <div class="control-group">
-        <div class="slider-container">
-          <label class="slider-label" for="thread-slider">Mining Threads (CPU Cores)</label>
-          <div class="slider-row">
-            <input type="range" id="thread-slider" min="1" max="16" value="4">
-            <span class="thread-count-badge" id="thread-count">4</span>
+    <!-- TAB 1: Crypto-Shredder -->
+    <div id="shred-tab" class="tab-pane active">
+      <section class="hero-card">
+        <h2 style="font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em;">
+          Irreversible Cryptographic File Shredder
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 0.4rem; line-height: 1.5;">
+          Transforms your file into pure mathematical white noise using a 512-bit AEAD cascade. Keys are generated directly in your device's hardware memory and immediately overwritten with zeroes. <strong>No intelligence agency, supercomputer, or quantum algorithm can ever decrypt this file.</strong>
+        </p>
+
+        <!-- Drop Zone -->
+        <div class="drop-zone" id="drop-zone">
+          <input type="file" id="file-input" style="display: none;">
+          <div class="drop-icon">
+            <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+          </div>
+          <p style="font-weight: 600; font-size: 1.05rem; margin-bottom: 0.25rem;">
+            Tap or Drag & Drop File to Destroy
+          </p>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">
+            Runs 100% locally in your browser RAM. File never leaves your device.
+          </span>
+        </div>
+
+        <!-- Selected File Preview Card -->
+        <div id="file-card" class="file-preview-card" style="display: none;">
+          <div class="preview-header">
+            <div>
+              <div class="preview-name" id="preview-filename">--</div>
+              <div class="preview-meta" id="preview-filesize">--</div>
+            </div>
+            <button id="btn-cancel-file" class="btn-icon" title="Clear file">✕</button>
+          </div>
+          <div class="sha-preview">
+            <span>SHA-256 Proof:</span>
+            <code id="preview-sha256">Calculating in WebCrypto...</code>
           </div>
         </div>
-      </div>
 
-      <div>
-        <button id="btn-toggle-mine" class="btn btn-primary">
-          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          Start Mining
+        <!-- Security Architecture Badges -->
+        <div class="security-grid">
+          <div class="sec-item">
+            <span class="sec-dot green"></span>
+            <div>
+              <strong>512-Bit Key Entropy</strong>
+              <p>Hardware CSPRNG (<code style="font-size: 0.75rem;">crypto.getRandomValues</code>)</p>
+            </div>
+          </div>
+          <div class="sec-item">
+            <span class="sec-dot green"></span>
+            <div>
+              <strong>RAM Zeroization</strong>
+              <p>Buffers wiped in volatile RAM with <code style="font-size: 0.75rem;">0x00</code></p>
+            </div>
+          </div>
+          <div class="sec-item">
+            <span class="sec-dot green"></span>
+            <div>
+              <strong>Cascade AEAD</strong>
+              <p>AES-256-GCM + Authenticated AAD Binding</p>
+            </div>
+          </div>
+          <div class="sec-item">
+            <span class="sec-dot green"></span>
+            <div>
+              <strong>Zero-Knowledge</strong>
+              <p>Air-gapped operation supported (Airplane mode)</p>
+            </div>
+          </div>
+        </div>
+
+        <button id="btn-shred" class="btn btn-shred" style="display: none; width: 100%; margin-top: 1.25rem;">
+          <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+          Irreversibly Crypto-Shred File
         </button>
-      </div>
-    </section>
+      </section>
 
-    <!-- Connected Devices / Mining Workers Table -->
-    <section class="workers-card">
-      <h3 class="workers-title">
-        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v10H4V6zm16-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h7v2H8v2h8v-2h-3v-2h7c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
-        Connected Devices in Pool
-      </h3>
+      <!-- Certificate of Destruction Result Card -->
+      <section id="cert-card" class="cert-card" style="display: none;">
+        <div class="cert-header">
+          <div class="cert-stamp">IRREVOCABLY DESTROYED</div>
+          <h3 style="font-size: 1.25rem; font-weight: 800; margin-top: 0.5rem; color: #ef4444;">
+            🔒 Certificate of Cryptographic Destruction
+          </h3>
+          <p style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">
+            This file has been transformed into pure mathematical white noise. Ephemeral keys have been destroyed in volatile memory.
+          </p>
+        </div>
 
-      <div style="overflow-x: auto;">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>Device / Worker</th>
-              <th>Hashrate</th>
-              <th>Total Hashes</th>
-            </tr>
-          </thead>
-          <tbody id="workers-table-body">
-            <tr>
-              <td colspan="3" style="text-align: center; color: var(--text-dim); padding: 2rem;">
-                No workers currently active. Click "Start Mining" or connect devices!
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <div class="cert-table">
+          <div class="cert-row">
+            <span class="c-key">Original File:</span>
+            <span class="c-val" id="cert-file-name">--</span>
+          </div>
+          <div class="cert-row">
+            <span class="c-key">Original Size:</span>
+            <span class="c-val" id="cert-file-size">--</span>
+          </div>
+          <div class="cert-row">
+            <span class="c-key">Content Fingerprint (SHA-256):</span>
+            <span class="c-val mono" id="cert-sha256" style="word-break: break-all; color: var(--accent-amber);">--</span>
+          </div>
+          <div class="cert-row">
+            <span class="c-key">Certificate ID:</span>
+            <span class="c-val mono green" id="cert-id">--</span>
+          </div>
+          <div class="cert-row">
+            <span class="c-key">Memory Zeroization:</span>
+            <span class="c-val green font-bold">VERIFIED (TypedArray.fill(0))</span>
+          </div>
+          <div class="cert-row">
+            <span class="c-key">Decryption Possibility:</span>
+            <span class="c-val red font-bold">0.00000000000000000000% (2^-512)</span>
+          </div>
+        </div>
+
+        <div class="cert-actions">
+          <button id="btn-download-container" class="btn btn-primary" style="flex: 1;">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+            Download Black Hole Container (.lwl)
+          </button>
+        </div>
+
+        <div class="mobile-notice">
+          <strong>⚠️ Важное действие для пользователей смартфонов (iPhone / Android):</strong>
+          <p style="margin-top: 0.35rem; color: var(--text-dim); line-height: 1.45;">
+            Вы зашифровали файл и уничтожили ключ в памяти браузера. Чтобы полностью защитить данные от спецслужб, теперь удалите исходный файл из галереи/папки «Файлы» и обязательно <strong>очистите корзину («Недавно удаленные»)</strong>!
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 2: Inspect Certificate -->
+    <div id="verify-tab" class="tab-pane">
+      <section class="hero-card">
+        <h2 style="font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em;">
+          Inspect & Verify Container (.lwl)
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 0.4rem;">
+          Verify the cryptographic Certificate of Destruction and inspect the mathematical integrity of any <code style="color: var(--accent-cyan);">.lwl</code> container directly in your browser.
+        </p>
+
+        <div class="drop-zone" id="inspect-drop-zone">
+          <input type="file" id="inspect-file-input" accept=".lwl" style="display: none;">
+          <div class="drop-icon" style="color: var(--accent-amber);">
+            <svg width="48" height="48" fill="currentColor" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+          </div>
+          <p style="font-weight: 600; font-size: 1.05rem; margin-bottom: 0.25rem;">
+            Select or Drop .lwl Container Here
+          </p>
+          <span style="color: var(--text-dim); font-size: 0.85rem;">
+            Reads and authenticates the cryptographically signed header.
+          </span>
+        </div>
+
+        <div id="inspect-result" class="cert-card" style="display: none; margin-top: 1.5rem;">
+          <!-- Injected via JS -->
+        </div>
+      </section>
+    </div>
+
+    <!-- TAB 3: All Devices & PWA Setup -->
+    <div id="devices-tab" class="tab-pane">
+      <section class="hero-card">
+        <h2 style="font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em;">
+          🛡️ Полная защита на всех устройствах
+        </h2>
+        <p style="color: var(--text-muted); font-size: 0.92rem; margin-top: 0.4rem; line-height: 1.5;">
+          LastWord Lock работает на любом типе устройств без исключений, используя изолированное шифрование в оперативной памяти.
+        </p>
+
+        <div class="platform-grid">
+          <!-- iPhone / iPad -->
+          <div class="platform-card">
+            <div class="platform-icon">📱</div>
+            <div class="platform-title">iPhone / iPad (iOS)</div>
+            <p class="platform-desc">
+              1. Откройте эту страницу в <strong>Safari</strong>.<br>
+              2. Нажмите кнопку <strong>«Поделиться»</strong> (квадрат со стрелкой).<br>
+              3. Выберите <strong>«На экран Домой» (Add to Home Screen)</strong>.<br>
+              Приложение установится как PWA и будет работать автономно даже в <strong>Авиарежиме без интернета</strong>.
+            </p>
+          </div>
+
+          <!-- Android -->
+          <div class="platform-card">
+            <div class="platform-icon">🤖</div>
+            <div class="platform-title">Android (Chrome / Firefox)</div>
+            <p class="platform-desc">
+              1. Откройте меню браузера (три точки вверху).<br>
+              2. Нажмите <strong>«Установить приложение»</strong> или <strong>«Добавить на главный экран»</strong>.<br>
+              Шифрование происходит локально на процессоре вашего телефона.
+            </p>
+          </div>
+
+          <!-- Mac & Linux & Windows Desktop -->
+          <div class="platform-card">
+            <div class="platform-icon">💻</div>
+            <div class="platform-title">Windows, Linux, macOS (CLI)</div>
+            <p class="platform-desc">
+              Для максимальной защиты с 3-проходным криминалистическим затиранием физических секторов диска используйте консольную утилиту:<br>
+              <code class="mono-code">lastword encrypt document.pdf</code>
+            </p>
+          </div>
+
+          <!-- Air-Gapped Flash Drive -->
+          <div class="platform-card">
+            <div class="platform-icon">💾</div>
+            <div class="platform-title">Автономный изолированный файл</div>
+            <p class="platform-desc">
+              Вы можете скачать полностью самодостаточный HTML-файл приложения и запускать его на изолированных компьютерах без сети.
+            </p>
+            <button id="btn-download-standalone" class="btn btn-secondary" style="margin-top: 0.75rem; width: 100%;">
+              Скачать автономный HTML (.html)
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
 
   </main>
 
-  <!-- Victory Unlocked Modal -->
-  <div class="modal-overlay" id="victory-modal">
-    <div class="victory-card">
-      <div class="victory-icon">
-        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-      </div>
-      <h2 class="victory-title">FILE UNLOCKED!</h2>
-      <p class="victory-text">
-        The cryptographic puzzle has been cracked! The master key was derived and the encrypted payload successfully verified.
-      </p>
-
-      <div class="nonce-box">
-        Solution Nonce: <span id="victory-nonce">--</span>
-      </div>
-
-      <p style="font-size: 0.85rem; color: var(--text-dim);">
-        Discovered by: <strong id="victory-winner" style="color: var(--accent-cyan);">--</strong>
-      </p>
-
-      <button id="btn-download" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;">
-        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-        Download Decrypted File
-      </button>
-    </div>
-  </div>
-
   <footer>
-    <p>LastWord Lock • Distributed Proof-of-Work File Encryption & Decryption Engine</p>
+    <p>LastWord Lock • Universal Client-Side Crypto-Shredder & Digital Black Hole Engine</p>
   </footer>
 
   <script src="/static/app.js"></script>

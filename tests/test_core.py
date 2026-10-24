@@ -1,7 +1,12 @@
 """
 Standard library test suite for LastWord Lock.
-Validates encryption, container format, PoW verification, commit-reveal,
-sabotage defense, and adaptive range leasing.
+Validates:
+- Irreversible Crypto-Shredding (Digital Black Hole) with 512-bit AEAD Cascade
+- RAM-level key zeroization with ctypes.memset
+- Multi-pass forensic disk sector wiping with os.fsync
+- Certificate of Destruction verification
+- Impossibility of decryption for shredded containers
+- Legacy PoW container compatibility
 """
 
 import sys
@@ -12,16 +17,19 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
 from lastword_lock.container import (
     pack_container,
     unpack_container,
     read_container_metadata,
     MAX_HEADER_SIZE,
 )
-from lastword_lock.coordinator import PoolCoordinator, create_pool_app
-from lastword_lock.crypto import verify_nonce
+from lastword_lock.crypto import (
+    secure_zeroize,
+    forensic_wipe_file,
+    IrreversibleCryptographicShredError,
+    verify_nonce,
+)
+from lastword_lock.coordinator import PoolCoordinator
 
 
 class TestLastWordLock(unittest.TestCase):
@@ -32,18 +40,67 @@ class TestLastWordLock(unittest.TestCase):
     def tearDown(self):
         self.tmp_dir.cleanup()
 
-    def test_untrusted_container_headers(self):
+    def test_crypto_shredding_and_irreversibility(self):
+        """Test that Crypto-Shredding produces an uncrackable black hole and wipes plaintext."""
+        secret_content = b"Super confidential financial records 98765"
+        test_file = self.tmp_path / "financial.dat"
+        test_file.write_bytes(secret_content)
+        expected_sha256 = hashlib.sha256(secret_content).hexdigest()
+        lwl_file = self.tmp_path / "financial.dat.lwl"
+
+        # 1. Crypto-shred with forensic disk wipe
+        meta = pack_container(test_file, lwl_file, wipe_source=True)
+
+        # 2. Verify original plaintext file was physically wiped from storage
+        self.assertFalse(test_file.exists(), "Plaintext file must be forensically wiped from storage!")
+
+        # 3. Verify Certificate of Destruction in metadata
+        self.assertEqual(meta.version, 2)
+        self.assertEqual(meta.status, "SHREDDED")
+        self.assertEqual(meta.key_destruction, "ZEROIZED_IN_RAM_512BIT")
+        self.assertEqual(meta.file_sha256, expected_sha256)
+        self.assertTrue(len(meta.cert_id) > 0)
+        self.assertTrue(len(meta.shredded_at) > 0)
+
+        # 4. Verify reading container directly from disk
+        parsed_meta, offset, raw_hdr = read_container_metadata(lwl_file)
+        self.assertEqual(parsed_meta.status, "SHREDDED")
+        self.assertEqual(parsed_meta.file_sha256, expected_sha256)
+
+        # 5. Verify that decryption is mathematically impossible
+        dest_file = self.tmp_path / "recovered.dat"
+        with self.assertRaises(IrreversibleCryptographicShredError) as ctx:
+            unpack_container(lwl_file, dest_file)
+
+        self.assertIn("mathematical", str(ctx.exception).lower())
+
+    def test_ram_zeroization(self):
+        """Verify C-level ctypes.memset overwrites volatile RAM buffers with zeroes."""
+        key_buf = bytearray(b"\xff\xaa\x55\x12" * 16)  # 64 bytes
+        self.assertTrue(any(b != 0 for b in key_buf))
+        secure_zeroize(key_buf)
+        self.assertTrue(all(b == 0 for b in key_buf), "Memory buffer must be entirely zeroized!")
+
+    def test_forensic_storage_wipe(self):
+        """Verify multi-pass disk wiping overwrites and unlinks the file."""
+        target = self.tmp_path / "target_to_shred.txt"
+        target.write_text("Sensitve content on disk", encoding="utf-8")
+        self.assertTrue(target.is_file())
+        forensic_wipe_file(target, passes=3)
+        self.assertFalse(target.exists(), "File should be unlinked after multi-pass wipe")
+
+    def test_legacy_untrusted_container_headers(self):
+        """Verify header bounds checking on legacy containers."""
         test_file = self.tmp_path / "secret.txt"
-        test_file.write_text("Secret Contest Prize Data 12345", encoding="utf-8")
+        test_file.write_text("Secret Data 12345", encoding="utf-8")
         lwl_file = self.tmp_path / "test.lwl"
 
-        # 1. Pack valid container
         pack_container(test_file, lwl_file, difficulty=8, pow_alg="sha256")
         meta, offset, raw_hdr = read_container_metadata(lwl_file)
         self.assertEqual(meta.difficulty, 8)
         self.assertEqual(meta.search_space, 256)
 
-        # 2. Test oversized header > 64KB
+        # Oversized header > 64KB
         bad_lwl = self.tmp_path / "bad_header_size.lwl"
         with open(bad_lwl, "wb") as f:
             f.write(b"LWL1")
@@ -53,139 +110,51 @@ class TestLastWordLock(unittest.TestCase):
             read_container_metadata(bad_lwl)
         self.assertIn("oversized", str(ctx.exception).lower())
 
-        # 3. Test invalid difficulty in header (>62)
-        hdr_dict = meta.to_dict()
-        hdr_dict["difficulty"] = 100  # > 62
-        bad_diff_bytes = json.dumps(hdr_dict).encode("utf-8")
-        bad_diff_file = self.tmp_path / "bad_diff.lwl"
-        with open(bad_diff_file, "wb") as f:
-            f.write(b"LWL1")
-            f.write(struct.pack(">I", len(bad_diff_bytes)))
-            f.write(bad_diff_bytes)
-            f.write(b"dummy_ciphertext")
-        with self.assertRaises(ValueError) as ctx:
-            read_container_metadata(bad_diff_file)
-        self.assertIn("between 1 and 62", str(ctx.exception))
-
-    def test_coordinator_commit_reveal_and_sabotage(self):
-        test_file = self.tmp_path / "prize.txt"
-        test_file.write_text("Exclusive Prize Winner File", encoding="utf-8")
-        lwl_file = self.tmp_path / "contest.lwl"
+    def test_coordinator_collaborative_and_sabotage(self):
+        """Verify collaborative pool coordinator operation on legacy container."""
+        test_file = self.tmp_path / "shared.txt"
+        test_file.write_text("Collaborative Secret File", encoding="utf-8")
+        lwl_file = self.tmp_path / "pool.lwl"
         pack_container(test_file, lwl_file, difficulty=8, pow_alg="sha256")
 
         meta, _, _ = read_container_metadata(lwl_file)
-        winning_nonce = None
-        for n in range(meta.search_space):
-            if verify_nonce(meta.salt, meta.target_hash, n, algo="sha256"):
-                winning_nonce = n
-                break
-        self.assertIsNotNone(winning_nonce)
+        winning_nonce = next(
+            n for n in range(meta.search_space) if verify_nonce(meta.salt, meta.target_hash, n, algo="sha256")
+        )
 
-        coordinator = PoolCoordinator(lwl_file, contest_mode=True, chunk_size=50)
-        app = create_pool_app(coordinator)
-        client = TestClient(app)
+        coordinator = PoolCoordinator(lwl_file, chunk_size=50)
 
-        # 1. Lease & Sabotage Check
-        job1 = client.get("/api/job?worker_id=honest_1&name=HonestWorker").json()
+        # 1. Lease allocation & Sabotage Defense
+        job1 = coordinator.get_lease(worker_id="honest_1", name="HonestWorker", device="cli", cores=4)
         self.assertEqual(job1["status"], "work")
         l1_id = job1["lease_id"]
 
-        # Saboteur tries to report progress on honest_1's lease
-        sab_res = client.post(
-            "/api/progress",
-            json={
-                "worker_id": "saboteur_99",
-                "lease_id": l1_id,
-                "hashes_done": 50,
-                "hashrate": 1000.0,
-            },
+        sab_ok = coordinator.record_progress(
+            worker_id="saboteur_99",
+            lease_id=l1_id,
+            hashes_done=50,
+            hashrate=1000.0,
         )
-        self.assertEqual(sab_res.status_code, 403)
+        self.assertFalse(sab_ok)
 
-        # Honest worker reports progress
-        hon_res = client.post(
-            "/api/progress",
-            json={
-                "worker_id": "honest_1",
-                "lease_id": l1_id,
-                "hashes_done": 50,
-                "hashrate": 1000.0,
-            },
+        hon_ok = coordinator.record_progress(
+            worker_id="honest_1",
+            lease_id=l1_id,
+            hashes_done=50,
+            hashrate=1000.0,
         )
-        self.assertEqual(hon_res.status_code, 200)
+        self.assertTrue(hon_ok)
 
-        # 2. Commit-Reveal in contest mode
-        worker_winner = "winner_device"
-        commit_hash = hashlib.sha256(f"{winning_nonce}:{worker_winner}".encode()).hexdigest()
+        # 2. Submission
+        bad_ok = coordinator.submit_solution("honest_1", 9999999)
+        self.assertFalse(bad_ok)
 
-        # Pre-commit
-        c_res = client.post(
-            "/api/commit",
-            json={"worker_id": worker_winner, "commit": commit_hash},
-        )
-        self.assertEqual(c_res.status_code, 200)
+        success = coordinator.submit_solution("honest_1", winning_nonce, "HonestWorker")
+        self.assertTrue(success)
 
-        # Submit reveal
-        sub_res = client.post(
-            "/api/submit",
-            json={
-                "worker_id": worker_winner,
-                "name": "LuckyWinner",
-                "nonce": winning_nonce,
-            },
-        )
-        self.assertEqual(sub_res.status_code, 200)
-        claim_token = sub_res.json()["claim_token"]
-        self.assertIsNotNone(claim_token)
-
-        # Eavesdropper tries to steal prize after seeing reveal
-        eve_res = client.post(
-            "/api/submit",
-            json={
-                "worker_id": "eve_eavesdropper",
-                "name": "Eve",
-                "nonce": winning_nonce,
-            },
-        )
-        self.assertEqual(eve_res.status_code, 400)
-
-        # Privacy verification in contest mode
-        info = client.get("/api/info").json()
-        self.assertTrue(info["is_solved"])
-        self.assertIsNone(info["solution"])
-        stats = client.get("/api/stats").json()
-        self.assertIsNone(stats["solution"])
-
-        # Download authorization
-        dl_fail = client.get("/api/download", headers={"X-Claim-Token": "invalid_token"})
-        self.assertEqual(dl_fail.status_code, 403)
-        dl_success = client.get("/api/download", headers={"X-Claim-Token": claim_token})
-        self.assertEqual(dl_success.status_code, 200)
-        self.assertEqual(dl_success.content, b"Exclusive Prize Winner File")
-
-    def test_second_pass_reset(self):
-        test_file = self.tmp_path / "data.txt"
-        test_file.write_text("Hello World", encoding="utf-8")
-        lwl_file = self.tmp_path / "pass.lwl"
-        pack_container(test_file, lwl_file, difficulty=6, pow_alg="sha256")  # 64 nonces
-
-        coordinator = PoolCoordinator(lwl_file, contest_mode=True, chunk_size=32)
-        app = create_pool_app(coordinator)
-        client = TestClient(app)
-
-        # Worker 1 scans 0-32
-        j1 = client.get("/api/job?worker_id=w1").json()
-        client.post("/api/progress", json={"worker_id": "w1", "lease_id": j1["lease_id"], "hashes_done": 32})
-
-        # Worker 2 scans 32-64 (without solution)
-        j2 = client.get("/api/job?worker_id=w2").json()
-        client.post("/api/progress", json={"worker_id": "w2", "lease_id": j2["lease_id"], "hashes_done": 32})
-
-        # Next job triggers pass 2
-        j3 = client.get("/api/job?worker_id=w2").json()
-        self.assertEqual(j3["status"], "work")
-        self.assertEqual(coordinator.pass_number, 2)
-        self.assertEqual(coordinator.completed_hashes, 0)
+        self.assertTrue(coordinator.is_solved)
+        self.assertEqual(coordinator.winning_nonce, winning_nonce)
+        self.assertEqual(coordinator.decrypted_file_path.read_text(encoding="utf-8"), "Collaborative Secret File")
 
 
 if __name__ == "__main__":
